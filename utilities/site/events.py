@@ -1,8 +1,13 @@
+from asyncio import events
 from bs4 import BeautifulSoup
 import re
 import requests
+import pickle
+import os.path
+
 
 PLANETARIUM_SITE_PREFIX = 'https://www.nebo-nsk.ru'
+CACHE_FILE_NAME = 'events.cache'
 
 
 class Event:
@@ -22,10 +27,26 @@ class Event:
         return f'**{self.title}** {self.date}\n{self.description}\n\n[Подробнне]({self.url})'
 
 
+def _is_technical_day(soup):
+    contain_view_empty = soup.find(class_='view-empty')
+    if contain_view_empty:
+        return True
+    return False
+
+
 def _parse_events_from_url(source):
     events = []
     r = requests.get(f'{PLANETARIUM_SITE_PREFIX}/{source}')
     soup = BeautifulSoup(r.content, 'html.parser')
+    if _is_technical_day(soup):
+        technical_event = Event(
+            'Извините, но на выбранную дату мероприятия не запланированы:(',
+            'Понедельник - технический день!',
+            '',
+            'https://nebo-nsk.ru/my-calendar',
+        )
+        events.append(technical_event)
+        return events
     event_views = soup.find(class_='view-content').find_all(class_=re.compile("^views-row"))
     for view in event_views:
         try:
