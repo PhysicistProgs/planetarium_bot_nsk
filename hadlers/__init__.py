@@ -41,8 +41,14 @@ def add_handlers(bot: telebot.TeleBot):
     @bot.message_handler(content_types='text')
     def response(message):
         if message.text == root_markup.news_text:
-            news_info = get_planetarium_news()
-            bot.send_message(chat_id=message.chat.id, text=news_info, reply_markup=root_markup)
+            news_all = get_planetarium_news()
+            for news in news_all:
+                bot.send_message(
+                    chat_id=message.chat.id,
+                    text=news.get_text(),
+                    reply_markup=root_markup,
+                    parse_mode='Markdown',
+                )
         elif message.text == root_markup.contacts_text:
             schedule = get_planetarium_contacts()
             bot.send_message(chat_id=message.chat.id, text=schedule, reply_markup=root_markup)
