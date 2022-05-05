@@ -1,13 +1,15 @@
-from asyncio import events
 from bs4 import BeautifulSoup
 import re
 import requests
 import pickle
 import os.path
+import datetime
 
 
 PLANETARIUM_SITE_PREFIX = 'https://www.nebo-nsk.ru'
 CACHE_FILE_NAME = 'events.cache'
+TODAY_POSTFIX = 'my-calendar-today'
+TOMORROW_POSTFIX = 'my-calendar-tomorrow'
 
 
 class Event:
@@ -34,6 +36,25 @@ def _is_technical_day(soup):
     return False
 
 
+def _parse_date(dates_html, source):
+    if source == TODAY_POSTFIX:
+        parsed_date = datetime.date.today()
+    elif source == TOMORROW_POSTFIX:
+        parsed_date = datetime.date.today() + datetime.timedelta(days=1)
+    else:
+        print(f'unsupported source {source}')
+        return 'unknown date'
+    parsed_date_str = parsed_date.strftime("%d.%m.%Y")
+    result = parsed_date_str
+    dates_and_times = dates_html.find_all(class_='date-display-single')
+    for dt in dates_and_times:
+        date, time = dt.text.split('-')
+        date = date.strip()
+        if date == parsed_date_str:
+            result += time
+    return result
+
+
 def _parse_events_from_url(source):
     events = []
     r = requests.get(f'{PLANETARIUM_SITE_PREFIX}/{source}')
@@ -52,11 +73,12 @@ def _parse_events_from_url(source):
         try:
             title = view.find(class_='zagcal').text
             description = view.find(class_='opcal').text
-            date = view.find(class_='date-display-single').text
+            dates_html = view.find(class_='merdata')
+            date = _parse_date(dates_html, source)
             url_postfix = view.find(class_='zagcal').find('a').get('href')
             url = f"{PLANETARIUM_SITE_PREFIX}{url_postfix}"
-        except Exception:
-            print(f"Can't parse news {url}")
+        except Exception as e:
+            print(f"Can't parse news {e}")
         else:
             event = Event(title, description, date, url)
             events.append(event)
@@ -64,8 +86,8 @@ def _parse_events_from_url(source):
 
 
 def _parse_events():
-    today_events = _parse_events_from_url('my-calendar-today')
-    tomorrow_events = _parse_events_from_url('my-calendar-tomorrow')
+    today_events = _parse_events_from_url(TODAY_POSTFIX)
+    tomorrow_events = _parse_events_from_url(TOMORROW_POSTFIX)
     events = {'today': today_events, 'tomorrow': tomorrow_events}
     return events
 
